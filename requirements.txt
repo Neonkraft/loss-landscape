@@ -1,0 +1,11 @@
+h5py
+matplotlib
+mpi4py
+numpy
+pandas
+Pillow
+scikit-learn
+scipy
+seaborn
+torch==1.9
+torchvision
