@@ -289,7 +289,7 @@ class Network(nn.Module):
             s0, s1 = s1, cell(s0, s1, weights)
         out = self.global_pooling(s1)
         logits = self.classifier(out.view(out.size(0), -1))
-        return torch.squeeze(out, dim=(-1, -2)), logits
+        return out.squeeze(-1).squeeze(-1), logits
 
     def edge_normalization_forward(
         self,
