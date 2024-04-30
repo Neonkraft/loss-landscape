@@ -39,7 +39,7 @@ def eval_loss(net, criterion, loader, use_cuda=False):
                 targets = Variable(targets)
                 if use_cuda:
                     inputs, targets = inputs.cuda(), targets.cuda()
-                outputs = net(inputs)
+                outputs = net(inputs)[0]
                 loss = criterion(outputs, targets)
                 total_loss += loss.item()*batch_size
                 _, predicted = torch.max(outputs.data, 1)
