@@ -3,6 +3,25 @@ import torch, torchvision
 import cifar10.models.vgg as vgg
 import cifar10.models.resnet as resnet
 import cifar10.models.densenet as densenet
+from searchspace import (
+    BabyDARTSSearchSpace,
+    DARTSGenotype,  # noqa: F401
+    DARTSImageNetModel,
+    DARTSModel,
+    DARTSSearchSpace,
+    NAS201Genotype,
+    NASBench201Model,
+    NASBench201SearchSpace,
+    RobustDARTSSearchSpace,
+    SearchSpace,
+    TransNASBench101SearchSpace,
+)
+import sys
+from enum import Enum
+
+from fvcore.common.checkpoint import Checkpointer
+
+
 
 # map between model name and function
 models = {
@@ -37,6 +56,14 @@ models = {
     'wrn110_4_noshort'      : resnet.WRN110_4_noshort,
 }
 
+class SearchSpaceType(Enum):
+    DARTS = "darts"
+    NB201 = "nb201"
+    NB1SHOT1 = "nb1shot1"
+    TNB101 = "tnb101"
+    BABYDARTS = "baby_darts"
+    RobustDARTS = "robust_darts"
+
 def load(model_name, model_file=None, data_parallel=False):
     net = models[model_name]()
     if data_parallel: # the model is saved in data paralle mode
@@ -49,6 +76,43 @@ def load(model_name, model_file=None, data_parallel=False):
             net.load_state_dict(stored['state_dict'])
         else:
             net.load_state_dict(stored)
+
+    if data_parallel: # convert the model back to the single GPU version
+        net = net.module
+
+    net.eval()
+    return net
+
+def get_model(
+    model_name: SearchSpaceType,
+    config: dict,
+) -> None:
+    if model_name == SearchSpaceType.NB201:
+        model = NASBench201SearchSpace(**config)
+    elif model_name == SearchSpaceType.DARTS:
+        model = DARTSSearchSpace(**config)
+    elif model_name == SearchSpaceType.TNB101:
+        model = TransNASBench101SearchSpace(**config)
+    elif model_name == SearchSpaceType.BABYDARTS:
+        model = BabyDARTSSearchSpace(**config)
+    elif model_name == SearchSpaceType.RobustDARTS:
+        model = RobustDARTSSearchSpace(**config)
+    return model
+
+def load_confopt_model(model_name, model_file=None, data_parallel=False, config={}):
+    model = get_model(SearchSpaceType(model_name), config)
+    
+    if data_parallel and torch.cuda.is_available():
+        net = torch.nn.DataParallel(model).cuda()
+    else:
+        net = model
+    checkpointer = Checkpointer(
+        model=net,
+        save_dir=model_file,
+        save_to_disk=True,
+    )
+    checkpoint_info = checkpointer._load_file(f=model_file)
+    net.load_state_dict(checkpoint_info["model"])
 
     if data_parallel: # convert the model back to the single GPU version
         net = net.module
