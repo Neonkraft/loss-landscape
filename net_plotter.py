@@ -13,8 +13,12 @@ import os
 ################################################################################
 #                 Supporting functions for weights manipulation
 ################################################################################
-def get_weights(net):
+def get_weights(net, model_name):
     """ Extract parameters from net, and return a list of tensors"""
+    if model_name in ["nb201", "darts"]:
+        if hasattr(net, "module"):
+            return net.module.model_weight_parameters()
+        return net.model_weight_parameters()
     return [p.data for p in net.parameters()]
 
 
@@ -37,8 +41,9 @@ def set_weights(net, weights, directions=None, step=None):
         else:
             changes = [d*step for d in directions[0]]
 
-        for (p, w, d) in zip(net.parameters(), weights, changes):
-            p.data = w + torch.Tensor(d).type(type(w))
+        for (p, w, d) in zip(net.model_weight_parameters(), weights, changes):
+            # p.data = w + torch.Tensor(d).type(type(w))
+            p.data = w + torch.Tensor(d).to(w.device)      
 
 
 def set_states(net, states, directions=None, step=None):
@@ -108,8 +113,9 @@ def normalize_direction(direction, weights, norm='filter'):
     if norm == 'filter':
         # Rescale the filters (weights in group) in 'direction' so that each
         # filter has the same norm as its corresponding filter in 'weights'.
-        for d, w in zip(direction, weights):
-            d.mul_(w.norm()/(d.norm() + 1e-10))
+        for i, (d, w) in enumerate(zip(direction, weights)):
+            d.mul_(w.norm().item()/(d.norm() + 1e-10))
+            # direction[i] = d * (w.cpu().norm() / (d.norm() + 1e-10))
     elif norm == 'layer':
         # Rescale the layer variables in the direction so that each layer has
         # the same norm as the layer variables in weights.
@@ -193,7 +199,7 @@ def create_target_direction(net, net2, dir_type='states'):
     return direction
 
 
-def create_random_direction(net, dir_type='weights', ignore='biasbn', norm='filter'):
+def create_random_direction(net, dir_type='weights', ignore='biasbn', norm='filter', model_name='nb201'):
     """
         Setup a random (normalized) direction with the same dimension as
         the weights or states.
@@ -211,7 +217,7 @@ def create_random_direction(net, dir_type='weights', ignore='biasbn', norm='filt
 
     # random direction
     if dir_type == 'weights':
-        weights = get_weights(net) # a list of parameters.
+        weights = get_weights(net, model_name) # a list of parameters.
         direction = get_random_weights(weights)
         normalize_directions_for_weights(direction, weights, norm, ignore)
     elif dir_type == 'states':
@@ -222,7 +228,7 @@ def create_random_direction(net, dir_type='weights', ignore='biasbn', norm='filt
     return direction
 
 
-def setup_direction(args, dir_file, net):
+def setup_direction(args, dir_file, net,):
     """
         Setup the h5 file to store the directions.
         - xdirection, ydirection: The pertubation direction added to the mdoel.
@@ -252,7 +258,7 @@ def setup_direction(args, dir_file, net):
             net2 = model_loader.load(args.dataset, args.model, args.model_file2)
             xdirection = create_target_direction(net, net2, args.dir_type)
         else:
-            xdirection = create_random_direction(net, args.dir_type, args.xignore, args.xnorm)
+            xdirection = create_random_direction(net, args.dir_type, args.xignore, args.xnorm, args.model)
         h5_util.write_list(f, 'xdirection', xdirection)
 
         if args.y:
