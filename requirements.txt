@@ -1,11 +1,11 @@
 h5py
 matplotlib
 mpi4py
-numpy
+numpy==1.21.6
 pandas
 Pillow
 scikit-learn
 scipy
-seaborn
-torch==1.9
+seaborn==0.12.2
+torch==1.13
 torchvision
